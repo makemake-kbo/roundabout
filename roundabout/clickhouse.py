@@ -105,6 +105,52 @@ class ClickHouseClient:
             params["password"] = self._config.password
         return f"{self._config.url.rstrip('/')}/?{urlencode(params)}"
 
+    def execute(self, query: str) -> dict[str, Any]:
+        """
+        Execute a SQL query and return results.
+
+        For INSERT queries, returns metadata about rows written.
+        For SELECT queries, would need additional handling (not implemented).
+
+        Args:
+            query: SQL query to execute.
+
+        Returns:
+            Dictionary with query results or metadata.
+
+        Raises:
+            ClickHouseError: On HTTP errors or connection failures.
+        """
+        url = self._build_url(query)
+        request = Request(url, method="POST")
+        try:
+            with urlopen(request, timeout=self._config.timeout_s) as response:
+                body = response.read().decode("utf-8")
+                # For INSERT queries, ClickHouse returns summary info in headers
+                rows_written = response.headers.get("X-ClickHouse-Summary", "")
+                return {"rows_written": self._parse_rows_written(rows_written), "body": body}
+        except HTTPError as exc:
+            body = exc.read().decode("utf-8", errors="replace")
+            raise ClickHouseError(f"http_error:{exc.code}:{body}") from exc
+        except URLError as exc:
+            raise ClickHouseError(f"url_error:{exc.reason}") from exc
+
+    def _parse_rows_written(self, summary: str) -> int:
+        """
+        Parse rows written from ClickHouse summary header.
+
+        Args:
+            summary: X-ClickHouse-Summary header value.
+
+        Returns:
+            Number of rows written, or 0 if cannot parse.
+        """
+        try:
+            data = json.loads(summary)
+            return data.get("written_rows", 0)
+        except (json.JSONDecodeError, ValueError):
+            return 0
+
     def insert_json_each_row(self, table: str, records: list[dict[str, Any]]) -> None:
         """
         Insert records into ClickHouse using JSONEachRow format.

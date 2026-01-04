@@ -157,6 +157,18 @@ def parse_args(argv: list[str] | None = None) -> CollectorConfig:
         help=f"Logging level (default: {DEFAULT_LOG_LEVEL})",
     )
 
+    # Output Configuration
+    parser.add_argument(
+        "--jsonl",
+        action="store_true",
+        help="Enable JSONL file output (default: disabled)",
+    )
+    parser.add_argument(
+        "--no-clickhouse",
+        action="store_true",
+        help="Disable ClickHouse writes",
+    )
+
     # ClickHouse Configuration
     parser.add_argument(
         "--clickhouse-url",
@@ -190,11 +202,6 @@ def parse_args(argv: list[str] | None = None) -> CollectorConfig:
         default=float(os.getenv("CLICKHOUSE_TIMEOUT", str(DEFAULT_CLICKHOUSE_TIMEOUT_S))),
         help=f"ClickHouse timeout in seconds (default: {DEFAULT_CLICKHOUSE_TIMEOUT_S})",
     )
-    parser.add_argument(
-        "--no-clickhouse",
-        action="store_true",
-        help="Disable ClickHouse writes (only write JSONL)",
-    )
 
     args = parser.parse_args(argv)
 
@@ -221,6 +228,7 @@ def parse_args(argv: list[str] | None = None) -> CollectorConfig:
         limit=args.limit,
         stop_codes=stop_codes,
         shuffle=args.shuffle,
+        jsonl_enabled=args.jsonl,
         clickhouse_enabled=not args.no_clickhouse,
         clickhouse_url=args.clickhouse_url,
         clickhouse_database=args.clickhouse_database,

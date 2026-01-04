@@ -726,7 +726,7 @@
             }
           },
           "queryType": "sql",
-          "rawSql": "WITH stop_stats AS (\n  SELECT \n    stop_code,\n    count() as total_requests\n  FROM raw_stop_predictions\n  WHERE observed_at >= now() - INTERVAL 6 HOUR\n  GROUP BY stop_code\n),\nerror_stats AS (\n  SELECT \n    stop_code,\n    count() as error_count\n  FROM raw_errors\n  WHERE observed_at >= now() - INTERVAL 6 HOUR\n  GROUP BY stop_code\n)\nSELECT \n  s.stop_code,\n  any(g.stop_name) as stop_name,\n  s.total_requests,\n  COALESCE(e.error_count, 0) as errors,\n  round(COALESCE(e.error_count, 0) * 100.0 / s.total_requests, 2) as error_rate_pct\nFROM stop_stats s\nLEFT JOIN error_stats e ON s.stop_code = e.stop_code\nLEFT JOIN gtfs_stops g ON s.stop_code = g.stop_code\nWHERE s.total_requests >= 10\nORDER BY error_rate_pct DESC\nLIMIT 20",
+          "rawSql": "WITH stop_stats AS (\n  SELECT \n    stop_code,\n    count() as total_requests\n  FROM raw_stop_predictions\n  WHERE observed_at >= now() - INTERVAL 6 HOUR\n  GROUP BY stop_code\n),\nerror_stats AS (\n  SELECT \n    stop_code,\n    count() as error_count\n  FROM raw_errors\n  WHERE observed_at >= now() - INTERVAL 6 HOUR\n  GROUP BY stop_code\n)\nSELECT \n  s.stop_code,\n  any(g.stop_name) as stop_name,\n  s.total_requests,\n  COALESCE(e.error_count, 0) as errors,\n  round(COALESCE(e.error_count, 0) * 100.0 / s.total_requests, 2) as error_rate_pct\nFROM stop_stats s\nLEFT JOIN error_stats e ON s.stop_code = e.stop_code\nLEFT JOIN gtfs_stops g ON s.stop_code = g.stop_code\nWHERE s.total_requests >= 10\nGROUP BY s.stop_code, s.total_requests, e.error_count\nORDER BY error_rate_pct DESC\nLIMIT 20",
           "refId": "A"
         }
       ],

@@ -25,6 +25,7 @@ from roundabout.transformers import (
     build_prediction_record,
     build_vehicle_record,
 )
+from roundabout.processor import process_cycle
 from roundabout.utils import format_timestamp
 
 LOG = logging.getLogger(__name__)
@@ -59,10 +60,14 @@ def collect_once(stops: list[Stop], config: CollectorConfig) -> CycleSummary:
     cycle_id = started_at.strftime(CYCLE_ID_FORMAT)
     output_paths = build_output_paths(config.output_dir, cycle_id, started_at)
 
-    # Initialize JSONL writers
-    predictions_writer = JsonlWriter(output_paths["predictions"])
-    vehicles_writer = JsonlWriter(output_paths["vehicles"])
-    errors_writer = JsonlWriter(output_paths["errors"])
+    # Initialize JSONL writers (only if enabled)
+    predictions_writer = None
+    vehicles_writer = None
+    errors_writer = None
+    if config.jsonl_enabled:
+        predictions_writer = JsonlWriter(output_paths["predictions"])
+        vehicles_writer = JsonlWriter(output_paths["vehicles"])
+        errors_writer = JsonlWriter(output_paths["errors"])
 
     # Initialize ClickHouse writers if enabled
     clickhouse_client = None
@@ -141,7 +146,8 @@ def collect_once(stops: list[Stop], config: CollectorConfig) -> CycleSummary:
                         "attempts": 0,
                         "duration_ms": 0,
                     }
-                    errors_writer.write(unexpected_record)
+                    if errors_writer:
+                        errors_writer.write(unexpected_record)
                     if clickhouse_errors:
                         clickhouse_errors.write(unexpected_record)
                     continue
@@ -152,7 +158,8 @@ def collect_once(stops: list[Stop], config: CollectorConfig) -> CycleSummary:
                 if result.error:
                     errors += 1
                     error_record = build_error_record(stop=stop, result=result, cycle_id=cycle_id)
-                    errors_writer.write(error_record)
+                    if errors_writer:
+                        errors_writer.write(error_record)
                     if clickhouse_errors:
                         clickhouse_errors.write(error_record)
                     continue
@@ -169,7 +176,8 @@ def collect_once(stops: list[Stop], config: CollectorConfig) -> CycleSummary:
                         vehicle=vehicle,
                         cycle_id=cycle_id,
                     )
-                    predictions_writer.write(prediction)
+                    if predictions_writer:
+                        predictions_writer.write(prediction)
                     if clickhouse_predictions:
                         clickhouse_predictions.write(prediction)
                     predictions_count += 1
@@ -184,16 +192,20 @@ def collect_once(stops: list[Stop], config: CollectorConfig) -> CycleSummary:
                         result=result,
                         prediction=prediction,
                     )
-                    vehicles_writer.write(vehicle_record)
+                    if vehicles_writer:
+                        vehicles_writer.write(vehicle_record)
                     if clickhouse_vehicles:
                         clickhouse_vehicles.write(vehicle_record)
                     unique_vehicles += 1
 
     finally:
         # Ensure all writers are properly closed
-        predictions_writer.close()
-        vehicles_writer.close()
-        errors_writer.close()
+        if predictions_writer:
+            predictions_writer.close()
+        if vehicles_writer:
+            vehicles_writer.close()
+        if errors_writer:
+            errors_writer.close()
 
         if clickhouse_predictions:
             clickhouse_predictions.close()
@@ -215,9 +227,10 @@ def collect_once(stops: list[Stop], config: CollectorConfig) -> CycleSummary:
         unique_vehicles=unique_vehicles,
     )
 
-    cycles_writer = JsonlWriter(output_paths["cycles"])
-    cycles_writer.write(summary.as_record())
-    cycles_writer.close()
+    if config.jsonl_enabled:
+        cycles_writer = JsonlWriter(output_paths["cycles"])
+        cycles_writer.write(summary.as_record())
+        cycles_writer.close()
 
     if clickhouse_cycles:
         clickhouse_cycles.write(summary.as_record())
@@ -236,6 +249,8 @@ def collect_forever(stops: list[Stop], config: CollectorConfig) -> None:
     The sleep duration is adjusted to account for collection time, ensuring
     cycles start at regular intervals rather than having fixed gaps between them.
 
+    After each collection cycle, runs ETL processing to populate analytics tables.
+
     Args:
         stops: List of stops to query.
         config: Collector configuration with interval_s setting.
@@ -246,6 +261,19 @@ def collect_forever(stops: list[Stop], config: CollectorConfig) -> None:
         - Cycle 2: starts at 30s, takes 4s -> sleeps 26s
         - Cycle 3: starts at 60s, ...
     """
+    # Create a persistent ClickHouse client for ETL processing
+    processor_client = None
+    if config.clickhouse_enabled:
+        processor_client = ClickHouseClient(
+            ClickHouseConfig(
+                url=config.clickhouse_url,
+                database=config.clickhouse_database,
+                user=config.clickhouse_user,
+                password=config.clickhouse_password,
+                timeout_s=config.clickhouse_timeout_s,
+            )
+        )
+
     while True:
         started = time.monotonic()
         summary = collect_once(stops, config)
@@ -259,6 +287,18 @@ def collect_forever(stops: list[Stop], config: CollectorConfig) -> None:
             summary.errors,
             (summary.finished_at - summary.started_at).total_seconds(),
         )
+
+        # Run ETL processing to populate analytics tables
+        if processor_client:
+            try:
+                process_results = process_cycle(processor_client)
+                LOG.info(
+                    "processed arrivals=%s eta_errors=%s",
+                    process_results.get("arrivals", 0),
+                    process_results.get("eta_errors", 0),
+                )
+            except Exception as exc:
+                LOG.error("ETL processing failed: %s", exc)
 
         # Exit after one cycle if interval is 0
         if config.interval_s <= 0:

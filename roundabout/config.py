@@ -27,6 +27,7 @@ class CollectorConfig:
         limit: Maximum number of stops to process (None for all).
         stop_codes: Set of specific stop codes to process (None for all).
         shuffle: Whether to randomize stop processing order.
+        jsonl_enabled: Whether to write data to JSONL files.
         clickhouse_enabled: Whether to write data to ClickHouse.
         clickhouse_url: ClickHouse HTTP interface URL.
         clickhouse_database: ClickHouse database name.
@@ -46,6 +47,7 @@ class CollectorConfig:
     limit: int | None
     stop_codes: set[str] | None
     shuffle: bool
+    jsonl_enabled: bool
     clickhouse_enabled: bool
     clickhouse_url: str
     clickhouse_database: str
