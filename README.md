@@ -9,11 +9,53 @@
 - Detect vehicle bunching events and generate heatmaps per corridor
 - Identify top delayed segments by week/day
 
+## Features
+
+- **Real-time Data Collection**: Collects bus/tram/trolleybus predictions every 45 seconds
+- **ClickHouse Storage**: High-performance time-series database for analytics
+- **Grafana Dashboards**: Pre-configured dashboards with:
+  - Vehicle location heatmap
+  - On-time performance by transport type
+  - Most late/on-time lines and stops
+  - Problematic stops with high error rates
+  - Large timetable deviations
+- **Easy Management**: Makefile commands for common operations
+
 ## Quick Start
 
-### Using Docker (Recommended)
+### Using Docker with Makefile (Recommended)
 
-1. **Start all services** (ClickHouse + Collector):
+1. **Start all services** (ClickHouse + Collector + Grafana):
+   ```bash
+   make up
+   ```
+
+2. **View logs**:
+   ```bash
+   make logs              # All services
+   make logs-collector    # Collector only
+   make logs-grafana      # Grafana only
+   ```
+
+3. **Access Grafana dashboard**:
+   - Open http://localhost:3000
+   - Login: `admin` / `admin` (change on first login)
+   - Dashboard: "Belgrade Public Transport Analytics"
+
+4. **Stop services**:
+   ```bash
+   make down              # Stop and keep data
+   make clean-all         # Stop and remove all data
+   ```
+
+5. **View all commands**:
+   ```bash
+   make help
+   ```
+
+### Using Docker Compose Directly
+
+1. **Start all services** (ClickHouse + Collector + Grafana):
    ```bash
    docker-compose up -d
    ```
@@ -25,7 +67,8 @@
 
 3. **Stop services**:
    ```bash
-   docker-compose down
+   docker-compose down         # Keep data volumes
+   docker-compose down -v      # Remove data volumes
    ```
 
 ### Using Python Directly
@@ -80,6 +123,16 @@ Key settings:
 - `CLICKHOUSE_BATCH_SIZE`: Records per batch (default: 2000)
 
 See `.env.example` for full documentation.
+
+### Grafana Configuration
+
+Grafana is accessible at http://localhost:3000 with default credentials `admin/admin`.
+
+Optional environment variables:
+- `GRAFANA_ADMIN_USER`: Admin username (default: admin)
+- `GRAFANA_ADMIN_PASSWORD`: Admin password (default: admin)
+
+The ClickHouse datasource and dashboard are automatically provisioned on startup.
 
 ### Command-Line Arguments
 

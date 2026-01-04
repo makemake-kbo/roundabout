@@ -40,7 +40,7 @@ services:
       - ./data/raw:/app/data/raw
     command: >
       python main.py
-      --interval ${COLLECTION_INTERVAL:-30}
+      --interval ${COLLECTION_INTERVAL:-45}
       --concurrency ${CONCURRENCY:-10}
       --timeout ${REQUEST_TIMEOUT:-10}
       --retries ${RETRIES:-2}
@@ -49,8 +49,30 @@ services:
     networks:
       - roundabout-network
 
+  grafana:
+    image: grafana/grafana:latest
+    container_name: roundabout-grafana
+    ports:
+      - "3000:3000"
+    depends_on:
+      clickhouse:
+        condition: service_healthy
+    environment:
+      GF_SECURITY_ADMIN_USER: ${GRAFANA_ADMIN_USER:-admin}
+      GF_SECURITY_ADMIN_PASSWORD: ${GRAFANA_ADMIN_PASSWORD:-admin}
+      GF_INSTALL_PLUGINS: grafana-clickhouse-datasource
+      GF_USERS_ALLOW_SIGN_UP: "false"
+    volumes:
+      - grafana-data:/var/lib/grafana
+      - ./grafana/provisioning:/etc/grafana/provisioning:ro
+    restart: unless-stopped
+    networks:
+      - roundabout-network
+
 volumes:
   clickhouse-data:
+    driver: local
+  grafana-data:
     driver: local
 
 networks:
