@@ -30,6 +30,7 @@ services:
       clickhouse:
         condition: service_healthy
     environment:
+      PYTHONUNBUFFERED: "1"
       CLICKHOUSE_URL: http://clickhouse:8123
       CLICKHOUSE_DB: roundabout
       CLICKHOUSE_USER: ${CLICKHOUSE_USER:-}
