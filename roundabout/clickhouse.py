@@ -1,3 +1,5 @@
+"""ClickHouse HTTP client for batch insertions."""
+
 from __future__ import annotations
 
 import json
@@ -12,11 +14,24 @@ LOG = logging.getLogger(__name__)
 
 
 class ClickHouseError(RuntimeError):
+    """Exception raised for ClickHouse API errors."""
+
     pass
 
 
 @dataclass(frozen=True)
 class ClickHouseConfig:
+    """
+    Configuration for ClickHouse HTTP client.
+
+    Attributes:
+        url: ClickHouse HTTP interface URL (e.g., http://localhost:8123).
+        database: Default database name for table resolution.
+        user: Username for authentication (None for no auth).
+        password: Password for authentication (None for no auth).
+        timeout_s: Request timeout in seconds.
+    """
+
     url: str
     database: str
     user: str | None
@@ -25,18 +40,64 @@ class ClickHouseConfig:
 
 
 class ClickHouseClient:
+    """
+    HTTP client for ClickHouse database operations.
+
+    Supports JSON insertion via the JSONEachRow format. Handles authentication
+    and automatic database prefixing for table names.
+
+    Examples:
+        >>> from roundabout.clickhouse import ClickHouseClient, ClickHouseConfig
+        >>> config = ClickHouseConfig(
+        ...     url="http://localhost:8123",
+        ...     database="roundabout",
+        ...     user="default",
+        ...     password=None,
+        ...     timeout_s=10.0,
+        ... )
+        >>> client = ClickHouseClient(config)
+        >>> records = [{"id": 1, "name": "test"}]
+        >>> client.insert_json_each_row("my_table", records)
+    """
     def __init__(self, config: ClickHouseConfig) -> None:
+        """
+        Initialize ClickHouse client.
+
+        Args:
+            config: Client configuration.
+        """
         self._config = config
         self._settings = {
             "date_time_input_format": "best_effort",
         }
 
     def _table_name(self, table: str) -> str:
+        """
+        Resolve fully-qualified table name.
+
+        If table already contains a dot or no database is configured,
+        returns table as-is. Otherwise prefixes with database name.
+
+        Args:
+            table: Table name (may include database prefix).
+
+        Returns:
+            Fully-qualified table name.
+        """
         if "." in table or not self._config.database:
             return table
         return f"{self._config.database}.{table}"
 
     def _build_url(self, query: str) -> str:
+        """
+        Build ClickHouse HTTP API URL with query and authentication.
+
+        Args:
+            query: SQL query to execute.
+
+        Returns:
+            Complete URL with query parameters.
+        """
         params: dict[str, Any] = {"query": query, **self._settings}
         if self._config.user:
             params["user"] = self._config.user
@@ -45,6 +106,19 @@ class ClickHouseClient:
         return f"{self._config.url.rstrip('/')}/?{urlencode(params)}"
 
     def insert_json_each_row(self, table: str, records: list[dict[str, Any]]) -> None:
+        """
+        Insert records into ClickHouse using JSONEachRow format.
+
+        Each record is serialized as JSON on a separate line. Empty record
+        lists are ignored (no-op).
+
+        Args:
+            table: Table name (auto-prefixed with database if needed).
+            records: List of dictionaries to insert.
+
+        Raises:
+            ClickHouseError: On HTTP errors or connection failures.
+        """
         if not records:
             return
         table_name = self._table_name(table)
@@ -65,6 +139,21 @@ class ClickHouseClient:
 
 
 class ClickHouseBatchWriter:
+    """
+    Buffered batch writer for ClickHouse insertions.
+
+    Accumulates records in memory and flushes to ClickHouse when the batch
+    size is reached. Errors during flush are logged but don't raise exceptions,
+    allowing collection to continue even if the database is unavailable.
+
+    Examples:
+        >>> client = ClickHouseClient(config)
+        >>> writer = ClickHouseBatchWriter(client, "my_table", batch_size=1000)
+        >>> for record in records:
+        ...     writer.write(record)  # Auto-flushes at batch_size
+        >>> writer.close()  # Flush remaining records
+    """
+
     def __init__(
         self,
         client: ClickHouseClient,
@@ -72,17 +161,37 @@ class ClickHouseBatchWriter:
         *,
         batch_size: int = 2000,
     ) -> None:
+        """
+        Initialize batch writer.
+
+        Args:
+            client: ClickHouse client for insertions.
+            table: Target table name.
+            batch_size: Number of records to buffer before flushing (min: 1).
+        """
         self._client = client
         self._table = table
         self._batch_size = max(1, batch_size)
         self._buffer: list[dict[str, Any]] = []
 
     def write(self, record: dict[str, Any]) -> None:
+        """
+        Write a single record, auto-flushing when batch size reached.
+
+        Args:
+            record: Dictionary to write to ClickHouse.
+        """
         self._buffer.append(record)
         if len(self._buffer) >= self._batch_size:
             self.flush()
 
     def flush(self) -> None:
+        """
+        Flush buffered records to ClickHouse.
+
+        Errors are logged but not raised, allowing collection to continue.
+        The buffer is cleared regardless of success or failure.
+        """
         if not self._buffer:
             return
         try:
@@ -98,4 +207,9 @@ class ClickHouseBatchWriter:
             self._buffer.clear()
 
     def close(self) -> None:
+        """
+        Flush any remaining buffered records.
+
+        Should be called when done writing to ensure all records are persisted.
+        """
         self.flush()

@@ -1,0 +1,58 @@
+version: '3.8'
+
+services:
+  clickhouse:
+    image: clickhouse/clickhouse-server:latest
+    container_name: roundabout-clickhouse
+    ports:
+      - "8123:8123"  # HTTP interface
+      - "9000:9000"  # Native protocol
+    volumes:
+      - clickhouse-data:/var/lib/clickhouse
+      - ./schema/clickhouse.sql:/docker-entrypoint-initdb.d/init.sql:ro
+    environment:
+      CLICKHOUSE_DB: roundabout
+      CLICKHOUSE_DEFAULT_ACCESS_MANAGEMENT: 1
+    healthcheck:
+      test: ["CMD", "clickhouse-client", "--query", "SELECT 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - roundabout-network
+
+  collector:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: roundabout-collector
+    depends_on:
+      clickhouse:
+        condition: service_healthy
+    environment:
+      CLICKHOUSE_URL: http://clickhouse:8123
+      CLICKHOUSE_DB: roundabout
+      CLICKHOUSE_USER: ${CLICKHOUSE_USER:-}
+      CLICKHOUSE_PASSWORD: ${CLICKHOUSE_PASSWORD:-}
+      CLICKHOUSE_BATCH_SIZE: ${CLICKHOUSE_BATCH_SIZE:-2000}
+      CLICKHOUSE_TIMEOUT: ${CLICKHOUSE_TIMEOUT:-10}
+    volumes:
+      - ./data/raw:/app/data/raw
+    command: >
+      python main.py
+      --interval ${COLLECTION_INTERVAL:-30}
+      --concurrency ${CONCURRENCY:-10}
+      --timeout ${REQUEST_TIMEOUT:-10}
+      --retries ${RETRIES:-2}
+      --log-level ${LOG_LEVEL:-INFO}
+    restart: unless-stopped
+    networks:
+      - roundabout-network
+
+volumes:
+  clickhouse-data:
+    driver: local
+
+networks:
+  roundabout-network:
+    driver: bridge

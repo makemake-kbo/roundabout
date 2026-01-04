@@ -2,10 +2,11 @@ from __future__ import annotations
 
 from datetime import datetime, timedelta, timezone
 
-import roundabout.collector as collector
+from roundabout import orchestrator
 from roundabout.bgpp import FetchResult
-from roundabout.collector import CollectorConfig
+from roundabout.config import CollectorConfig
 from roundabout.gtfs import Stop
+from roundabout.utils import format_timestamp
 
 
 def _base_config(tmp_path) -> CollectorConfig:
@@ -77,15 +78,15 @@ def test_collect_once_dedupes_and_writes_clickhouse(monkeypatch, tmp_path):
     def fake_fetch_stop(stop_code: str, **_kwargs):
         return responses[stop_code]
 
-    monkeypatch.setattr(collector, "ClickHouseBatchWriter", FakeBatchWriter)
-    monkeypatch.setattr(collector, "fetch_stop", fake_fetch_stop)
+    monkeypatch.setattr(orchestrator, "ClickHouseBatchWriter", FakeBatchWriter)
+    monkeypatch.setattr(orchestrator, "fetch_stop", fake_fetch_stop)
 
     stops = [
         Stop(stop_id=20001, stop_code="1", stop_name="Stop A", stop_lat=44.0, stop_lon=20.0),
         Stop(stop_id=20002, stop_code="2", stop_name="Stop B", stop_lat=44.1, stop_lon=20.1),
     ]
     config = _base_config(tmp_path)
-    summary = collector.collect_once(stops, config)
+    summary = orchestrator.collect_once(stops, config)
 
     assert summary.predictions == 2
     assert summary.unique_vehicles == 1
@@ -94,7 +95,7 @@ def test_collect_once_dedupes_and_writes_clickhouse(monkeypatch, tmp_path):
     assert len(registry["raw_cycles"]) == 1
 
     prediction = registry["raw_stop_predictions"][0]
-    expected_arrival = collector._format_ts(observed_at + timedelta(seconds=60))
+    expected_arrival = format_timestamp(observed_at + timedelta(seconds=60))
     assert prediction["predicted_arrival_at"] == expected_arrival
 
 
@@ -123,14 +124,14 @@ def test_collect_once_records_errors(monkeypatch, tmp_path):
             attempts=1,
         )
 
-    monkeypatch.setattr(collector, "ClickHouseBatchWriter", FakeBatchWriter)
-    monkeypatch.setattr(collector, "fetch_stop", fake_fetch_stop)
+    monkeypatch.setattr(orchestrator, "ClickHouseBatchWriter", FakeBatchWriter)
+    monkeypatch.setattr(orchestrator, "fetch_stop", fake_fetch_stop)
 
     stops = [
         Stop(stop_id=20001, stop_code="1", stop_name="Stop A", stop_lat=44.0, stop_lon=20.0),
     ]
     config = _base_config(tmp_path)
-    summary = collector.collect_once(stops, config)
+    summary = orchestrator.collect_once(stops, config)
 
     assert summary.predictions == 0
     assert summary.unique_vehicles == 0
