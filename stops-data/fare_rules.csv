@@ -1,0 +1,6 @@
+fare_id,route_id,origin_id,destination_id,contains_id
+200,90004,1,1,
+400,90005,1,1,
+200,90002,1,1,
+200,90003,1,1,
+

@@ -1,0 +1,10 @@
+[project]
+name = "roundabout"
+version = "0.1.0"
+description = "Collect and analyze Belgrade public transport telemetry."
+readme = "README.md"
+requires-python = ">=3.13"
+dependencies = []
+
+[project.scripts]
+roundabout = "roundabout.collector:main"
