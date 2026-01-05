@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 # HTTP and API Configuration
-DEFAULT_BASE_URL = "https://bgpp.misa.st/api/stations/bg/search"
+DEFAULT_BASE_URL = "http://bgpp:3000/api/stations/bg/search"
 DEFAULT_USER_AGENT = "roundabout/0.1"
 DEFAULT_HTTP_TIMEOUT_S = 10.0
 DEFAULT_HTTP_RETRIES = 2

@@ -26,7 +26,7 @@ help:
 
 # Start services with persistent volumes
 up:
-	docker-compose up -d
+	docker compose up -d
 	@echo ""
 	@echo "Services started!"
 	@echo "  - ClickHouse:  http://localhost:8123"
@@ -36,55 +36,55 @@ up:
 
 # Stop services but keep volumes (data persists)
 down:
-	docker-compose down
+	docker compose down
 	@echo "Services stopped. Data volumes preserved."
 	@echo "Run 'make up' to restart with existing data."
 
 # Stop services without removing containers
 stop:
-	docker-compose stop
+	docker compose stop
 	@echo "Services stopped. Run 'docker-compose start' or 'make restart' to resume."
 
 # Restart all services
 restart:
-	docker-compose restart
+	docker compose restart
 	@echo "Services restarted."
 
 # Remove containers and volumes (no persistence)
 clean-all:
-	docker-compose down -v
+	docker compose down -v
 	@echo "All containers and volumes removed."
 	@echo "Next 'make up' will start fresh."
 
 # Remove containers but keep volumes
 clean:
-	docker-compose down
+	docker compose down
 	@echo "Containers removed, volumes preserved."
 
 # Show container status
 ps:
-	docker-compose ps
+	docker compose ps
 
 # Follow logs for all services
 logs:
-	docker-compose logs -f
+	dockercompose logs -f
 
 # Follow logs for specific services
 logs-collector:
-	docker-compose logs -f collector
+	docker compose logs -f collector
 
 logs-clickhouse:
-	docker-compose logs -f clickhouse
+	docker compose logs -f clickhouse
 
 logs-grafana:
-	docker-compose logs -f grafana
+	docker compose logs -f grafana
 
 # Build images (useful after code changes)
 build:
-	docker-compose build
+	docker compose build
 	@echo "Images rebuilt. Run 'make up' to start with new images."
 
 # Rebuild and restart
 rebuild: build
-	docker-compose up -d --force-recreate
+	docker compose up -d --force-recreate
 	@echo "Services rebuilt and restarted."

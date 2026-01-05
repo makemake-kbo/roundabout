@@ -70,6 +70,19 @@ services:
     networks:
       - roundabout-network
 
+  bgpp:
+    build:
+      context: https://github.com/MikMik1011/bgpp.git
+      dockerfile: Dockerfile
+    container_name: roundabout-bgpp
+    ports:
+      - "3001:3000"
+    environment:
+      NODE_ENV: production
+    restart: unless-stopped
+    networks:
+      - roundabout-network
+
 volumes:
   clickhouse-data:
     driver: local
