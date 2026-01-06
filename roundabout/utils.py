@@ -132,3 +132,47 @@ def round_coordinate(value: float | None, decimal_places: int = 5) -> float | No
     if value is None:
         return None
     return round(value, decimal_places)
+
+
+def haversine_distance(lat1: float, lon1: float, lat2: float, lon2: float) -> float:
+    """
+    Calculate great-circle distance between two points using the Haversine formula.
+
+    The Haversine formula calculates the shortest distance over the earth's surface,
+    giving an 'as-the-crow-flies' distance between points (ignoring hills, roads, etc.).
+
+    Args:
+        lat1: Latitude of first point in degrees.
+        lon1: Longitude of first point in degrees.
+        lat2: Latitude of second point in degrees.
+        lon2: Longitude of second point in degrees.
+
+    Returns:
+        Distance in kilometers.
+
+    Examples:
+        >>> # Distance from Belgrade center to airport (roughly 12 km)
+        >>> haversine_distance(44.8176, 20.4633, 44.8184, 20.3091)
+        12.07...
+        >>> # Same point
+        >>> haversine_distance(44.8176, 20.4633, 44.8176, 20.4633)
+        0.0
+    """
+    import math
+
+    # Earth's radius in kilometers
+    R = 6371.0
+
+    # Convert degrees to radians
+    lat1_rad = math.radians(lat1)
+    lat2_rad = math.radians(lat2)
+    delta_lat = math.radians(lat2 - lat1)
+    delta_lon = math.radians(lon2 - lon1)
+
+    # Haversine formula
+    a = (math.sin(delta_lat / 2) ** 2 +
+         math.cos(lat1_rad) * math.cos(lat2_rad) *
+         math.sin(delta_lon / 2) ** 2)
+    c = 2 * math.atan2(math.sqrt(a), math.sqrt(1 - a))
+
+    return R * c

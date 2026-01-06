@@ -4,3 +4,4 @@ data/
 *.pyc
 .pytest_cache/
 .claude
+.env

@@ -28,6 +28,9 @@ VEHICLE_KEY_HASH_LENGTH = 16
 
 # Default CLI Arguments
 DEFAULT_STOPS_CSV = "stops-data/stops.csv"
+DEFAULT_ROUTES_CSV = "stops-data/routes.csv"
+DEFAULT_TRIPS_CSV = "stops-data/trips.csv"
+DEFAULT_STOP_TIMES_CSV = "stops-data/stop_times_00.csv"
 DEFAULT_OUTPUT_DIR = "data/raw"
 DEFAULT_CONCURRENCY = 10
 DEFAULT_INTERVAL_S = 0.0
@@ -44,6 +47,7 @@ CLICKHOUSE_TABLE_PREDICTIONS = "raw_stop_predictions"
 CLICKHOUSE_TABLE_VEHICLES = "raw_vehicles"
 CLICKHOUSE_TABLE_ERRORS = "raw_errors"
 CLICKHOUSE_TABLE_CYCLES = "raw_cycles"
+CLICKHOUSE_TABLE_VEHICLE_MOVEMENTS = "vehicle_movements"
 
 # Date/Time Formats
 CYCLE_ID_FORMAT = "%Y%m%dT%H%M%SZ"
@@ -55,9 +59,37 @@ OUTPUT_DATE_PREFIX_FORMAT = "%Y/%m/%d"
 ISO_TIMESTAMP_TIMESPEC = "milliseconds"
 """Timespec for ISO 8601 timestamp formatting."""
 
+# Rate Limiting Configuration
+DEFAULT_RATE_LIMIT_RPS = 50.0
+"""Default rate limit in requests per second."""
+
+DEFAULT_RATE_LIMIT_ENABLED = True
+"""Whether rate limiting is enabled by default."""
+
+# Vehicle Tracking Configuration
+DEFAULT_VEHICLE_TRACKING_ENABLED = True
+"""Whether cross-cycle vehicle tracking is enabled by default."""
+
+DEFAULT_VEHICLE_TRACKING_TTL_CYCLES = 5
+"""Number of cycles to track vehicles before considering them stale."""
+
+# Geographic Bounding Box Configuration (Belgrade Approximate)
+DEFAULT_BBOX_MIN_LAT = 44.70
+"""Default minimum latitude for geographic bounding box."""
+
+DEFAULT_BBOX_MAX_LAT = 44.92
+"""Default maximum latitude for geographic bounding box."""
+
+DEFAULT_BBOX_MIN_LON = 20.35
+"""Default minimum longitude for geographic bounding box."""
+
+DEFAULT_BBOX_MAX_LON = 20.60
+"""Default maximum longitude for geographic bounding box."""
+
 # Minimum Values for Configuration Validation
 MIN_CONCURRENCY = 1
 MIN_RETRIES = 0
 MIN_INTERVAL_S = 0.0
 MIN_BATCH_SIZE = 1
 MIN_CLICKHOUSE_TIMEOUT_S = 1.0
+MIN_RATE_LIMIT_RPS = 0.1

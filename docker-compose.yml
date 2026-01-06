@@ -37,6 +37,11 @@ services:
       CLICKHOUSE_PASSWORD: ${CLICKHOUSE_PASSWORD:-}
       CLICKHOUSE_BATCH_SIZE: ${CLICKHOUSE_BATCH_SIZE:-2000}
       CLICKHOUSE_TIMEOUT: ${CLICKHOUSE_TIMEOUT:-10}
+      PRIORITY_ROUTES: ${PRIORITY_ROUTES:-}
+      BBOX_MIN_LAT: ${BBOX_MIN_LAT:-}
+      BBOX_MAX_LAT: ${BBOX_MAX_LAT:-}
+      BBOX_MIN_LON: ${BBOX_MIN_LON:-}
+      BBOX_MAX_LON: ${BBOX_MAX_LON:-}
     volumes:
       - ./data/raw:/app/data/raw
     command: >

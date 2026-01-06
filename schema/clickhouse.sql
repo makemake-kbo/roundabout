@@ -254,3 +254,36 @@ ENGINE = AggregatingMergeTree
 PARTITION BY toYYYYMM(day)
 ORDER BY (line_number, day, hour)
 TTL day + INTERVAL 1 MONTH DELETE;
+
+-- Vehicle movements table for cross-cycle tracking
+CREATE TABLE IF NOT EXISTS vehicle_movements
+(
+    observed_at DateTime64(3, 'UTC'),
+    cycle_id String,
+    vehicle_key String,
+    vehicle_id Nullable(String),
+    line_number LowCardinality(String),
+    direction LowCardinality(String),
+    current_stop_id UInt32,
+    current_stop_code String,
+    current_lat Nullable(Float64),
+    current_lon Nullable(Float64),
+    previous_cycle_id String,
+    previous_stop_id Nullable(UInt32),
+    previous_stop_code String,
+    previous_lat Nullable(Float64),
+    previous_lon Nullable(Float64),
+    distance_km Nullable(Float64),
+    stop_changed Bool,
+    cycles_since_last_seen UInt8,
+    observed_date Date MATERIALIZED toDate(observed_at),
+    observed_hour UInt8 MATERIALIZED toHour(observed_at)
+)
+ENGINE = MergeTree
+PARTITION BY toYYYYMM(observed_at)
+ORDER BY (line_number, observed_at, vehicle_key)
+TTL observed_at + INTERVAL 1 MONTH DELETE;
+
+-- Add indexes for line-centric queries
+ALTER TABLE raw_stop_predictions ADD INDEX IF NOT EXISTS idx_line_number line_number TYPE set(0) GRANULARITY 4;
+ALTER TABLE raw_vehicles ADD INDEX IF NOT EXISTS idx_line_number line_number TYPE set(0) GRANULARITY 4;

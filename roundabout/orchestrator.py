@@ -7,7 +7,7 @@ import time
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from datetime import datetime, timezone
 
-from roundabout.bgpp import fetch_stop
+from roundabout.bgpp import fetch_stop, FetchResult
 from roundabout.clickhouse import ClickHouseBatchWriter, ClickHouseClient, ClickHouseConfig
 from roundabout.config import CollectorConfig, CycleSummary
 from roundabout.constants import (
@@ -18,6 +18,7 @@ from roundabout.constants import (
     CYCLE_ID_FORMAT,
 )
 from roundabout.gtfs import Stop
+from roundabout.rate_limiter import TokenBucketRateLimiter
 from roundabout.storage import JsonlWriter
 from roundabout.transformers import (
     build_error_record,
@@ -25,13 +26,19 @@ from roundabout.transformers import (
     build_prediction_record,
     build_vehicle_record,
 )
+from roundabout.vehicle_tracker import VehicleTracker
 from roundabout.processor import process_cycle
 from roundabout.utils import format_timestamp
 
 LOG = logging.getLogger(__name__)
 
 
-def collect_once(stops: list[Stop], config: CollectorConfig) -> CycleSummary:
+def collect_once(
+    stops: list[Stop],
+    config: CollectorConfig,
+    rate_limiter: TokenBucketRateLimiter | None = None,
+    vehicle_tracker: VehicleTracker | None = None,
+) -> CycleSummary:
     """
     Execute a single collection cycle across all configured stops.
 
@@ -114,18 +121,23 @@ def collect_once(stops: list[Stop], config: CollectorConfig) -> CycleSummary:
     errors = 0
     responses = 0
 
+    # Define rate-limited fetch wrapper
+    def rate_limited_fetch(stop: Stop) -> FetchResult:
+        """Wrapper to apply rate limiting before fetching."""
+        if rate_limiter:
+            rate_limiter.acquire()
+        return fetch_stop(
+            stop.stop_code,
+            base_url=config.base_url,
+            timeout_s=config.timeout_s,
+            retries=config.retries,
+        )
+
     try:
         # Fetch predictions concurrently
         with ThreadPoolExecutor(max_workers=config.concurrency) as executor:
             future_to_stop = {
-                executor.submit(
-                    fetch_stop,
-                    stop.stop_code,
-                    base_url=config.base_url,
-                    timeout_s=config.timeout_s,
-                    retries=config.retries,
-                ): stop
-                for stop in stops
+                executor.submit(rate_limited_fetch, stop): stop for stop in stops
             }
 
             for future in as_completed(future_to_stop):
@@ -181,6 +193,18 @@ def collect_once(stops: list[Stop], config: CollectorConfig) -> CycleSummary:
                     if clickhouse_predictions:
                         clickhouse_predictions.write(prediction)
                     predictions_count += 1
+
+                    # Track vehicle movement if tracker enabled
+                    if vehicle_tracker:
+                        previous_state = vehicle_tracker.update(
+                            prediction["vehicle_key"],
+                            cycle_id,
+                            result.observed_at,
+                            prediction["vehicle_lat"],
+                            prediction["vehicle_lon"],
+                            stop.stop_code,
+                            prediction["line_number"],
+                        )
 
                     # Write unique vehicle record on first occurrence
                     if prediction["vehicle_key"] in seen_vehicle_keys:
@@ -261,6 +285,24 @@ def collect_forever(stops: list[Stop], config: CollectorConfig) -> None:
         - Cycle 2: starts at 30s, takes 4s -> sleeps 26s
         - Cycle 3: starts at 60s, ...
     """
+    # Initialize rate limiter if enabled
+    rate_limiter = None
+    if config.rate_limit_enabled:
+        rate_limiter = TokenBucketRateLimiter(
+            tokens_per_second=config.rate_limit_rps,
+            bucket_capacity=int(config.rate_limit_rps * 2),
+        )
+        LOG.info("Rate limiter initialized: %.1f rps", config.rate_limit_rps)
+
+    # Initialize vehicle tracker if enabled
+    vehicle_tracker = None
+    if config.vehicle_tracking_enabled:
+        vehicle_tracker = VehicleTracker(ttl_cycles=config.vehicle_tracking_ttl_cycles)
+        LOG.info(
+            "Vehicle tracker initialized: TTL=%d cycles",
+            config.vehicle_tracking_ttl_cycles,
+        )
+
     # Create a persistent ClickHouse client for ETL processing
     processor_client = None
     if config.clickhouse_enabled:
@@ -276,7 +318,7 @@ def collect_forever(stops: list[Stop], config: CollectorConfig) -> None:
 
     while True:
         started = time.monotonic()
-        summary = collect_once(stops, config)
+        summary = collect_once(stops, config, rate_limiter, vehicle_tracker)
 
         LOG.info(
             "cycle=%s stops=%s predictions=%s unique_vehicles=%s errors=%s duration_s=%.2f",
@@ -299,6 +341,12 @@ def collect_forever(stops: list[Stop], config: CollectorConfig) -> None:
                 )
             except Exception as exc:
                 LOG.error("ETL processing failed: %s", exc)
+
+        # Cleanup stale vehicles from tracker
+        if vehicle_tracker:
+            removed = vehicle_tracker.cleanup()
+            if removed:
+                LOG.debug("Removed %d stale vehicles from tracker", removed)
 
         # Exit after one cycle if interval is 0
         if config.interval_s <= 0:
