@@ -18,6 +18,7 @@ CREATE TABLE IF NOT EXISTS raw_stop_predictions
     vehicle_key String,
     vehicle_lat Nullable(Float64),
     vehicle_lon Nullable(Float64),
+    data_source LowCardinality(String) DEFAULT 'api',
     observed_date Date MATERIALIZED toDate(observed_at),
     observed_hour UInt8 MATERIALIZED toHour(observed_at)
 )
@@ -41,6 +42,7 @@ CREATE TABLE IF NOT EXISTS raw_vehicles
     source_stop_code String,
     seconds_left Nullable(Int32),
     stations_between Nullable(UInt16),
+    data_source LowCardinality(String) DEFAULT 'api',
     observed_date Date MATERIALIZED toDate(observed_at),
     observed_hour UInt8 MATERIALIZED toHour(observed_at)
 )
@@ -76,6 +78,11 @@ CREATE TABLE IF NOT EXISTS raw_cycles
     errors UInt32,
     predictions UInt32,
     unique_vehicles UInt32,
+    stops_polled Nullable(UInt32),
+    stops_predicted Nullable(UInt32),
+    vehicles_verified Nullable(UInt32),
+    vehicles_delayed Nullable(UInt32),
+    vehicles_stuck Nullable(UInt32),
     started_date Date MATERIALIZED toDate(started_at),
     started_hour UInt8 MATERIALIZED toHour(started_at)
 )

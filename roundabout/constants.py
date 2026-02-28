@@ -93,3 +93,31 @@ MIN_INTERVAL_S = 0.0
 MIN_BATCH_SIZE = 1
 MIN_CLICKHOUSE_TIMEOUT_S = 1.0
 MIN_RATE_LIMIT_RPS = 0.1
+
+# Optimistic Mode Configuration
+DEFAULT_OPTIMISTIC_ENABLED = False
+"""Whether optimistic timetable-based collection is enabled by default."""
+
+DEFAULT_CALENDAR_CSV = "stops-data/calendar.csv"
+"""Default path to GTFS calendar.csv file."""
+
+DEFAULT_CALENDAR_DATES_CSV = "stops-data/calendar_dates.csv"
+"""Default path to GTFS calendar_dates.csv file."""
+
+DEFAULT_CHECKPOINT_STRIDE = 5
+"""Default stride for checkpoint stop selection (every Nth stop per route)."""
+
+DEFAULT_VERIFICATION_BATCH = 80
+"""Default number of non-checkpoint stops to verify per cycle."""
+
+DEFAULT_DISCOVERY_INTERVAL = 10
+"""Run broader discovery sweep every Nth cycle."""
+
+DEFAULT_DEVIATION_THRESHOLD_S = 120
+"""Schedule deviation threshold in seconds to classify vehicle as delayed."""
+
+DEFAULT_STUCK_THRESHOLD_CYCLES = 3
+"""Number of consecutive same-stop API observations to classify vehicle as stuck."""
+
+DEFAULT_LOST_THRESHOLD_CYCLES = 5
+"""Number of cycles without API observation to classify vehicle as lost."""

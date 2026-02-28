@@ -33,6 +33,56 @@ class Stop:
 
 
 @dataclass(frozen=True)
+class Calendar:
+    """
+    GTFS calendar record.
+
+    Defines weekly service patterns and validity period for a service_id.
+
+    Attributes:
+        service_id: Service identifier (e.g., "RD", "S", "N").
+        monday: 1 if service runs on Monday, 0 otherwise.
+        tuesday: 1 if service runs on Tuesday.
+        wednesday: 1 if service runs on Wednesday.
+        thursday: 1 if service runs on Thursday.
+        friday: 1 if service runs on Friday.
+        saturday: 1 if service runs on Saturday.
+        sunday: 1 if service runs on Sunday.
+        start_date: Service start date as YYYYMMDD string.
+        end_date: Service end date as YYYYMMDD string.
+    """
+
+    service_id: str
+    monday: int
+    tuesday: int
+    wednesday: int
+    thursday: int
+    friday: int
+    saturday: int
+    sunday: int
+    start_date: str
+    end_date: str
+
+
+@dataclass(frozen=True)
+class CalendarDate:
+    """
+    GTFS calendar_dates record.
+
+    Defines exceptions to the regular weekly service pattern.
+
+    Attributes:
+        service_id: Service identifier.
+        date: Exception date as YYYYMMDD string.
+        exception_type: 1 = service added, 2 = service removed.
+    """
+
+    service_id: str
+    date: str
+    exception_type: int
+
+
+@dataclass(frozen=True)
 class StopTime:
     """
     GTFS stop_time record.
@@ -144,6 +194,90 @@ def load_stops(
         if limit is not None and len(stops) >= limit:
             break
     return stops
+
+
+def iter_calendar(calendar_csv: Path) -> Iterator[Calendar]:
+    """
+    Iterate through calendar entries from a GTFS calendar.csv file.
+
+    Args:
+        calendar_csv: Path to calendar.csv file.
+
+    Yields:
+        Calendar objects for each valid row.
+    """
+    with calendar_csv.open("r", newline="", encoding="utf-8") as handle:
+        reader = csv.DictReader(handle)
+        for row in reader:
+            service_id = (row.get("service_id") or "").strip()
+            if not service_id:
+                continue
+            try:
+                yield Calendar(
+                    service_id=service_id,
+                    monday=int(row.get("monday", 0)),
+                    tuesday=int(row.get("tuesday", 0)),
+                    wednesday=int(row.get("wednesday", 0)),
+                    thursday=int(row.get("thursday", 0)),
+                    friday=int(row.get("friday", 0)),
+                    saturday=int(row.get("saturday", 0)),
+                    sunday=int(row.get("sunday", 0)),
+                    start_date=(row.get("start_date") or "").strip(),
+                    end_date=(row.get("end_date") or "").strip(),
+                )
+            except (ValueError, TypeError):
+                continue
+
+
+def load_calendar(calendar_csv: Path) -> list[Calendar]:
+    """
+    Load all calendar entries from a GTFS calendar.csv file.
+
+    Args:
+        calendar_csv: Path to calendar.csv file.
+
+    Returns:
+        List of Calendar objects.
+    """
+    return list(iter_calendar(calendar_csv))
+
+
+def iter_calendar_dates(calendar_dates_csv: Path) -> Iterator[CalendarDate]:
+    """
+    Iterate through calendar date exceptions from a GTFS calendar_dates.csv file.
+
+    Args:
+        calendar_dates_csv: Path to calendar_dates.csv file.
+
+    Yields:
+        CalendarDate objects for each valid row.
+    """
+    with calendar_dates_csv.open("r", newline="", encoding="utf-8") as handle:
+        reader = csv.DictReader(handle)
+        for row in reader:
+            service_id = (row.get("service_id") or "").strip()
+            date = (row.get("date") or "").strip()
+            exception_type = parse_int((row.get("exception_type") or "").strip())
+            if not service_id or not date or exception_type is None:
+                continue
+            yield CalendarDate(
+                service_id=service_id,
+                date=date,
+                exception_type=exception_type,
+            )
+
+
+def load_calendar_dates(calendar_dates_csv: Path) -> list[CalendarDate]:
+    """
+    Load all calendar date exceptions from a GTFS calendar_dates.csv file.
+
+    Args:
+        calendar_dates_csv: Path to calendar_dates.csv file.
+
+    Returns:
+        List of CalendarDate objects.
+    """
+    return list(iter_calendar_dates(calendar_dates_csv))
 
 
 def resolve_stop_times_files(stop_times_path: Path) -> list[Path]:

@@ -126,7 +126,13 @@ def main(argv: list[str] | None = None) -> int:
     if config.shuffle:
         random.shuffle(stops)
 
-    collect_forever(stops, config)
+    if config.optimistic_enabled:
+        from roundabout.optimistic_orchestrator import optimistic_collect_forever
+
+        LOG.info("Optimistic mode enabled -- using timetable-based collection")
+        optimistic_collect_forever(stops, config)
+    else:
+        collect_forever(stops, config)
     return 0
 
 

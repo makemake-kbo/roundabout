@@ -80,6 +80,15 @@ class CollectorConfig:
     rate_limit_enabled: bool
     vehicle_tracking_enabled: bool
     vehicle_tracking_ttl_cycles: int
+    optimistic_enabled: bool
+    calendar_csv: Path
+    calendar_dates_csv: Path
+    checkpoint_stride: int
+    verification_batch_size: int
+    discovery_interval_cycles: int
+    deviation_threshold_s: int
+    stuck_threshold_cycles: int
+    lost_threshold_cycles: int
 
 
 @dataclass(frozen=True)
@@ -109,6 +118,11 @@ class CycleSummary:
     errors: int
     predictions: int
     unique_vehicles: int
+    stops_polled: int | None = None
+    stops_predicted: int | None = None
+    vehicles_verified: int | None = None
+    vehicles_delayed: int | None = None
+    vehicles_stuck: int | None = None
 
     def as_record(self) -> dict[str, Any]:
         """
@@ -119,7 +133,7 @@ class CycleSummary:
         """
         from roundabout.utils import format_timestamp
 
-        return {
+        record = {
             "cycle_id": self.cycle_id,
             "started_at": format_timestamp(self.started_at),
             "finished_at": format_timestamp(self.finished_at),
@@ -129,3 +143,14 @@ class CycleSummary:
             "predictions": self.predictions,
             "unique_vehicles": self.unique_vehicles,
         }
+        if self.stops_polled is not None:
+            record["stops_polled"] = self.stops_polled
+        if self.stops_predicted is not None:
+            record["stops_predicted"] = self.stops_predicted
+        if self.vehicles_verified is not None:
+            record["vehicles_verified"] = self.vehicles_verified
+        if self.vehicles_delayed is not None:
+            record["vehicles_delayed"] = self.vehicles_delayed
+        if self.vehicles_stuck is not None:
+            record["vehicles_stuck"] = self.vehicles_stuck
+        return record

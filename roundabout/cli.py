@@ -15,24 +15,33 @@ from roundabout.constants import (
     DEFAULT_BBOX_MAX_LON,
     DEFAULT_BBOX_MIN_LAT,
     DEFAULT_BBOX_MIN_LON,
+    DEFAULT_CALENDAR_CSV,
+    DEFAULT_CALENDAR_DATES_CSV,
+    DEFAULT_CHECKPOINT_STRIDE,
     DEFAULT_CLICKHOUSE_BATCH_SIZE,
     DEFAULT_CLICKHOUSE_DATABASE,
     DEFAULT_CLICKHOUSE_TIMEOUT_S,
     DEFAULT_CLICKHOUSE_URL,
     DEFAULT_CONCURRENCY,
+    DEFAULT_DEVIATION_THRESHOLD_S,
+    DEFAULT_DISCOVERY_INTERVAL,
     DEFAULT_HTTP_RETRIES,
     DEFAULT_HTTP_TIMEOUT_S,
     DEFAULT_INTERVAL_S,
     DEFAULT_LOG_LEVEL,
+    DEFAULT_LOST_THRESHOLD_CYCLES,
+    DEFAULT_OPTIMISTIC_ENABLED,
     DEFAULT_OUTPUT_DIR,
     DEFAULT_RATE_LIMIT_ENABLED,
     DEFAULT_RATE_LIMIT_RPS,
     DEFAULT_ROUTES_CSV,
     DEFAULT_STOP_TIMES_CSV,
     DEFAULT_STOPS_CSV,
+    DEFAULT_STUCK_THRESHOLD_CYCLES,
     DEFAULT_TRIPS_CSV,
     DEFAULT_VEHICLE_TRACKING_ENABLED,
     DEFAULT_VEHICLE_TRACKING_TTL_CYCLES,
+    DEFAULT_VERIFICATION_BATCH,
     MIN_BATCH_SIZE,
     MIN_CLICKHOUSE_TIMEOUT_S,
     MIN_CONCURRENCY,
@@ -327,6 +336,54 @@ def parse_args(argv: list[str] | None = None) -> CollectorConfig:
         help=f"Number of cycles to track vehicles (default: {DEFAULT_VEHICLE_TRACKING_TTL_CYCLES})",
     )
 
+    # Optimistic Mode
+    optimistic_group = parser.add_argument_group("optimistic timetable-based collection")
+    optimistic_group.add_argument(
+        "--optimistic",
+        action="store_true",
+        default=DEFAULT_OPTIMISTIC_ENABLED,
+        help="Enable optimistic timetable-based collection (reduces API calls ~85%%)",
+    )
+    optimistic_group.add_argument(
+        "--no-optimistic",
+        action="store_true",
+        help="Disable optimistic mode (use legacy full-poll)",
+    )
+    optimistic_group.add_argument(
+        "--calendar-csv",
+        default=DEFAULT_CALENDAR_CSV,
+        help=f"Path to GTFS calendar.csv (default: {DEFAULT_CALENDAR_CSV})",
+    )
+    optimistic_group.add_argument(
+        "--calendar-dates-csv",
+        default=DEFAULT_CALENDAR_DATES_CSV,
+        help=f"Path to GTFS calendar_dates.csv (default: {DEFAULT_CALENDAR_DATES_CSV})",
+    )
+    optimistic_group.add_argument(
+        "--checkpoint-stride",
+        type=int,
+        default=DEFAULT_CHECKPOINT_STRIDE,
+        help=f"Every Nth stop as checkpoint (default: {DEFAULT_CHECKPOINT_STRIDE})",
+    )
+    optimistic_group.add_argument(
+        "--verification-batch",
+        type=int,
+        default=DEFAULT_VERIFICATION_BATCH,
+        help=f"Non-checkpoint stops to verify per cycle (default: {DEFAULT_VERIFICATION_BATCH})",
+    )
+    optimistic_group.add_argument(
+        "--discovery-interval",
+        type=int,
+        default=DEFAULT_DISCOVERY_INTERVAL,
+        help=f"Run discovery sweep every N cycles (default: {DEFAULT_DISCOVERY_INTERVAL})",
+    )
+    optimistic_group.add_argument(
+        "--deviation-threshold",
+        type=int,
+        default=DEFAULT_DEVIATION_THRESHOLD_S,
+        help=f"Seconds behind schedule to flag delayed (default: {DEFAULT_DEVIATION_THRESHOLD_S})",
+    )
+
     args = parser.parse_args(argv)
 
     # Configure logging
@@ -370,6 +427,9 @@ def parse_args(argv: list[str] | None = None) -> CollectorConfig:
     # Vehicle tracking
     vehicle_tracking_enabled = not args.no_vehicle_tracking and DEFAULT_VEHICLE_TRACKING_ENABLED
 
+    # Optimistic mode
+    optimistic_enabled = args.optimistic and not args.no_optimistic
+
     # Build and validate configuration
     return CollectorConfig(
         base_url=args.base_url,
@@ -402,4 +462,13 @@ def parse_args(argv: list[str] | None = None) -> CollectorConfig:
         rate_limit_enabled=rate_limit_enabled,
         vehicle_tracking_enabled=vehicle_tracking_enabled,
         vehicle_tracking_ttl_cycles=args.tracking_ttl_cycles,
+        optimistic_enabled=optimistic_enabled,
+        calendar_csv=Path(args.calendar_csv),
+        calendar_dates_csv=Path(args.calendar_dates_csv),
+        checkpoint_stride=max(1, args.checkpoint_stride),
+        verification_batch_size=max(1, args.verification_batch),
+        discovery_interval_cycles=max(1, args.discovery_interval),
+        deviation_threshold_s=max(1, args.deviation_threshold),
+        stuck_threshold_cycles=DEFAULT_STUCK_THRESHOLD_CYCLES,
+        lost_threshold_cycles=DEFAULT_LOST_THRESHOLD_CYCLES,
     )

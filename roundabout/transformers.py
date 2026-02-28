@@ -164,6 +164,7 @@ def build_prediction_record(
         "vehicle_key": vehicle_key,
         "vehicle_lat": normalized["vehicle_lat"],
         "vehicle_lon": normalized["vehicle_lon"],
+        "data_source": "api",
     }
 
 
@@ -201,6 +202,7 @@ def build_vehicle_record(
         "source_stop_code": stop.stop_code,
         "seconds_left": prediction["seconds_left"],
         "stations_between": prediction["stations_between"],
+        "data_source": prediction.get("data_source", "api"),
     }
 
 
@@ -230,6 +232,72 @@ def build_error_record(
         "http_status": result.status,
         "attempts": result.attempts,
         "duration_ms": result.duration_ms,
+    }
+
+
+def build_timetable_prediction_record(
+    *,
+    cycle_id: str,
+    observed_at: str,
+    stop_id: int,
+    stop_code: str,
+    line_number: str,
+    direction: str | None,
+    trip_id: str,
+    vehicle_status: str,
+    estimated_seconds_to_next: int,
+    prev_stop_id: int,
+    next_stop_id: int,
+    fraction: float,
+    schedule_deviation_s: int,
+) -> dict[str, Any]:
+    """
+    Build a timetable-predicted vehicle record.
+
+    Same schema as API prediction records with additional timetable fields,
+    plus data_source="timetable" to distinguish from API observations.
+
+    Args:
+        cycle_id: Collection cycle identifier.
+        observed_at: ISO timestamp of the prediction.
+        stop_id: Stop ID the vehicle is predicted near.
+        stop_code: Stop code for the predicted stop.
+        line_number: Route line number.
+        direction: Direction of travel (A/B).
+        trip_id: GTFS trip ID.
+        vehicle_status: Vehicle tracking status.
+        estimated_seconds_to_next: Predicted seconds to next stop.
+        prev_stop_id: Previous stop ID in trip.
+        next_stop_id: Next stop ID in trip.
+        fraction: Interpolation fraction between stops (0.0 to 1.0).
+        schedule_deviation_s: Deviation from schedule in seconds.
+
+    Returns:
+        Dictionary record ready for storage.
+    """
+    return {
+        "observed_at": observed_at,
+        "cycle_id": cycle_id,
+        "stop_id": stop_id,
+        "stop_code": stop_code,
+        "api_stop_uid": None,
+        "line_number": line_number,
+        "line_name": None,
+        "direction": direction,
+        "seconds_left": estimated_seconds_to_next,
+        "predicted_arrival_at": None,
+        "stations_between": None,
+        "vehicle_id": None,
+        "vehicle_key": f"trip:{trip_id}",
+        "vehicle_lat": None,
+        "vehicle_lon": None,
+        "data_source": "timetable",
+        "trip_id": trip_id,
+        "vehicle_status": vehicle_status,
+        "prev_stop_id": prev_stop_id,
+        "next_stop_id": next_stop_id,
+        "interpolation_fraction": fraction,
+        "schedule_deviation_s": schedule_deviation_s,
     }
 
 
