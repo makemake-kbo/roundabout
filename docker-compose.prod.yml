@@ -1,0 +1,110 @@
+services:
+  clickhouse:
+    image: clickhouse/clickhouse-server:24.8-alpine
+    container_name: roundabout-clickhouse
+    # No host ports - only accessible via internal network
+    volumes:
+      - clickhouse-data:/var/lib/clickhouse
+      - ./schema/clickhouse.sql:/docker-entrypoint-initdb.d/init.sql:ro
+    environment:
+      CLICKHOUSE_DB: roundabout
+      CLICKHOUSE_USER: ${CLICKHOUSE_USER:-roundabout}
+      CLICKHOUSE_PASSWORD: ${CLICKHOUSE_PASSWORD:?Set CLICKHOUSE_PASSWORD in .env}
+      CLICKHOUSE_DEFAULT_ACCESS_MANAGEMENT: 1
+    healthcheck:
+      test: ["CMD", "clickhouse-client", "--user", "${CLICKHOUSE_USER:-roundabout}", "--password", "${CLICKHOUSE_PASSWORD}", "--query", "SELECT 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    restart: unless-stopped
+    networks:
+      - roundabout-network
+
+  collector:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: roundabout-collector
+    depends_on:
+      clickhouse:
+        condition: service_healthy
+    environment:
+      PYTHONUNBUFFERED: "1"
+      CLICKHOUSE_URL: http://clickhouse:8123
+      CLICKHOUSE_DB: roundabout
+      CLICKHOUSE_USER: ${CLICKHOUSE_USER:-roundabout}
+      CLICKHOUSE_PASSWORD: ${CLICKHOUSE_PASSWORD}
+      CLICKHOUSE_BATCH_SIZE: ${CLICKHOUSE_BATCH_SIZE:-2000}
+      CLICKHOUSE_TIMEOUT: ${CLICKHOUSE_TIMEOUT:-10}
+      PRIORITY_ROUTES: ${PRIORITY_ROUTES:-}
+      BBOX_MIN_LAT: ${BBOX_MIN_LAT:-}
+      BBOX_MAX_LAT: ${BBOX_MAX_LAT:-}
+      BBOX_MIN_LON: ${BBOX_MIN_LON:-}
+      BBOX_MAX_LON: ${BBOX_MAX_LON:-}
+    volumes:
+      - ./data/raw:/app/data/raw
+    command: >
+      python main.py
+      --interval ${COLLECTION_INTERVAL:-45}
+      --concurrency ${CONCURRENCY:-10}
+      --timeout ${REQUEST_TIMEOUT:-10}
+      --retries ${RETRIES:-2}
+      --log-level ${LOG_LEVEL:-INFO}
+    restart: unless-stopped
+    networks:
+      - roundabout-network
+
+  grafana:
+    image: grafana/grafana:11.5.2
+    container_name: roundabout-grafana
+    ports:
+      - "3000:3000"
+    depends_on:
+      clickhouse:
+        condition: service_healthy
+    environment:
+      # Admin
+      GF_SECURITY_ADMIN_USER: ${GRAFANA_ADMIN_USER:-admin}
+      GF_SECURITY_ADMIN_PASSWORD: ${GRAFANA_ADMIN_PASSWORD:?Set GRAFANA_ADMIN_PASSWORD in .env}
+      # Plugins
+      GF_INSTALL_PLUGINS: grafana-clickhouse-datasource
+      # Public anonymous read-only access
+      GF_AUTH_ANONYMOUS_ENABLED: "true"
+      GF_AUTH_ANONYMOUS_ORG_ROLE: Viewer
+      # Disable signup and org creation
+      GF_USERS_ALLOW_SIGN_UP: "false"
+      GF_USERS_ALLOW_ORG_CREATE: "false"
+      # Security hardening
+      GF_SECURITY_DISABLE_GRAVATAR: "true"
+      GF_SNAPSHOTS_EXTERNAL_ENABLED: "false"
+      # Passed through for datasource provisioning
+      CLICKHOUSE_USER: ${CLICKHOUSE_USER:-roundabout}
+      CLICKHOUSE_PASSWORD: ${CLICKHOUSE_PASSWORD}
+    volumes:
+      - grafana-data:/var/lib/grafana
+      - ./grafana/provisioning:/etc/grafana/provisioning:ro
+    restart: unless-stopped
+    networks:
+      - roundabout-network
+
+  bgpp:
+    build:
+      context: https://github.com/MikMik1011/bgpp.git
+      dockerfile: Dockerfile
+    container_name: roundabout-bgpp
+    # No host ports - only accessed by collector internally
+    environment:
+      NODE_ENV: production
+    restart: unless-stopped
+    networks:
+      - roundabout-network
+
+volumes:
+  clickhouse-data:
+    driver: local
+  grafana-data:
+    driver: local
+
+networks:
+  roundabout-network:
+    driver: bridge
